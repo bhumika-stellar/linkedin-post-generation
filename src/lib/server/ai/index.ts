@@ -52,10 +52,33 @@ export async function generatePost(
 		...conversationHistory
 	];
 
-	const response = await client.chat.completions.create({
-		model,
-		messages
-	});
+	// Build a list of models to try: the requested model first, then all other
+	// free models as fallbacks. Paid models are never used as silent fallbacks.
+	const isFreeModel = FREE_MODELS.some((m) => m.id === model);
+	const fallbackOrder = isFreeModel
+		? [model, ...FREE_MODELS.map((m) => m.id).filter((id) => id !== model)]
+		: [model];
 
-	return response.choices[0]?.message?.content ?? '';
+	let lastError: unknown;
+
+	for (const candidate of fallbackOrder) {
+		try {
+			const response = await client.chat.completions.create({
+				model: candidate,
+				messages
+			});
+			return response.choices[0]?.message?.content ?? '';
+		} catch (err: unknown) {
+			const status = (err as { status?: number })?.status;
+			// Only fall through to the next model on rate-limit errors
+			if (status === 429) {
+				console.warn(`Model ${candidate} is rate-limited, trying next fallback…`);
+				lastError = err;
+				continue;
+			}
+			throw err;
+		}
+	}
+
+	throw lastError;
 }
