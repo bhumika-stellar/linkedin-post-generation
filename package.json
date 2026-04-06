@@ -9,15 +9,36 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"db:generate": "drizzle-kit generate",
+		"db:push": "drizzle-kit push",
+		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.0",
+		"@sveltejs/adapter-vercel": "^6.3.3",
 		"@sveltejs/kit": "^2.50.2",
 		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@tailwindcss/vite": "^4.2.2",
+		"drizzle-kit": "^0.31.10",
 		"svelte": "^5.54.0",
 		"svelte-check": "^4.4.2",
+		"tailwindcss": "^4.2.2",
 		"typescript": "^5.9.3",
 		"vite": "^7.3.1"
+	},
+	"dependencies": {
+		"@anthropic-ai/sdk": "^0.82.0",
+		"@auth/drizzle-adapter": "^1.11.1",
+		"@auth/sveltekit": "^1.11.1",
+		"@neondatabase/serverless": "^1.0.2",
+		"@notionhq/client": "^5.16.0",
+		"bits-ui": "^2.17.2",
+		"clsx": "^2.1.1",
+		"drizzle-orm": "^0.45.2",
+		"openai": "^6.33.0",
+		"tailwind-merge": "^3.5.0",
+		"tailwind-variants": "^3.2.2"
 	}
 }
