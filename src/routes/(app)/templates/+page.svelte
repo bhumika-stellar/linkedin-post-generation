@@ -1,6 +1,37 @@
 <script lang="ts">
-	// Templates will be loaded from DB in Phase 4
-	const templates: unknown[] = [];
+	import { page } from '$app/stores';
+	import { invalidateAll } from '$app/navigation';
+
+	const templates = $derived($page.data.templates);
+
+	let expandedId = $state<string | null>(null);
+	let deletingId = $state<string | null>(null);
+
+	function toggleExpand(id: string) {
+		expandedId = expandedId === id ? null : id;
+	}
+
+	async function handleDelete(id: string) {
+		if (!confirm('Delete this template?')) return;
+
+		deletingId = id;
+		try {
+			const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
+			if (res.ok) {
+				await invalidateAll();
+			}
+		} finally {
+			deletingId = null;
+		}
+	}
+
+	function formatDate(date: string | Date) {
+		return new Date(date).toLocaleDateString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric'
+		});
+	}
 </script>
 
 <div class="p-4 lg:p-6">
@@ -27,6 +58,54 @@
 			>
 				Start Generating
 			</a>
+		</div>
+	{:else}
+		<div class="space-y-4">
+			{#each templates as template (template.id)}
+				<div class="rounded-xl border border-border p-4 transition-colors hover:bg-accent/30">
+					<div class="flex items-start justify-between gap-4">
+						<div class="min-w-0 flex-1">
+							<button
+								onclick={() => toggleExpand(template.id)}
+								class="text-left"
+							>
+								<h3 class="text-sm font-medium">{template.name}</h3>
+								{#if template.description}
+									<p class="mt-0.5 text-xs text-muted-foreground">{template.description}</p>
+								{/if}
+							</button>
+
+							{#if expandedId === template.id}
+								<div class="mt-3 rounded-lg bg-muted/50 p-3">
+									<p class="mb-1.5 text-xs font-medium text-muted-foreground">Guidelines</p>
+									<p class="whitespace-pre-line text-sm leading-relaxed">{template.systemPrompt}</p>
+								</div>
+							{/if}
+
+							<div class="mt-3 flex items-center gap-3">
+								<span class="text-xs text-muted-foreground">
+									{formatDate(template.createdAt)}
+								</span>
+								<button
+									onclick={() => toggleExpand(template.id)}
+									class="text-xs text-primary hover:underline"
+								>
+									{expandedId === template.id ? 'Collapse' : 'View guidelines'}
+								</button>
+							</div>
+						</div>
+						<div class="flex shrink-0 gap-1">
+							<button
+								onclick={() => handleDelete(template.id)}
+								disabled={deletingId === template.id}
+								class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10 disabled:opacity-40"
+							>
+								Delete
+							</button>
+						</div>
+					</div>
+				</div>
+			{/each}
 		</div>
 	{/if}
 </div>

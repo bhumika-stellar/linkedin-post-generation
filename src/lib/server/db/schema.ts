@@ -20,9 +20,8 @@ export const users = pgTable('user', {
 	email: text('email').unique(),
 	emailVerified: timestamp('emailVerified', { mode: 'date' }),
 	image: text('image'),
-	aiProvider: text('ai_provider').$type<'openai' | 'anthropic'>().default('openai'),
-	openaiApiKey: text('openai_api_key'),
-	anthropicApiKey: text('anthropic_api_key'),
+	openrouterApiKey: text('openrouter_api_key'),
+	preferredModel: text('preferred_model').default('qwen/qwen3.6-plus:free'),
 	notionAccessToken: text('notion_access_token'),
 	notionWorkspaceName: text('notion_workspace_name'),
 	createdAt: timestamp('created_at', { mode: 'date' }).defaultNow()
@@ -110,6 +109,9 @@ export const generatedPosts = pgTable('generated_post', {
 	rawInput: text('raw_input'),
 	generatedContent: text('generated_content').notNull(),
 	editedContent: text('edited_content'),
+	conversationHistory: json('conversation_history')
+		.$type<{ role: 'user' | 'assistant'; content: string }[]>()
+		.default([]),
 	status: text('status').$type<'draft' | 'final' | 'archived'>().default('draft'),
 	createdAt: timestamp('created_at', { mode: 'date' }).defaultNow(),
 	updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow()

@@ -3,32 +3,74 @@
 	let manualContent = $state('');
 	let generatedPost = $state('');
 	let currentPrompt = $state('');
-	let promptHistory = $state<{ role: 'user' | 'ai'; text: string }[]>([]);
 	let isGenerating = $state(false);
+	let isSaving = $state(false);
+	let copied = $state(false);
+	let saved = $state(false);
+	let errorMessage = $state('');
 
-	function handleGenerate() {
+	let promptHistory = $state<{ role: 'user' | 'ai'; text: string }[]>([]);
+	let conversationHistory = $state<{ role: 'user' | 'assistant'; content: string }[]>([]);
+
+	async function handleGenerate() {
 		if (!currentPrompt.trim()) return;
 
-		promptHistory = [...promptHistory, { role: 'user', text: currentPrompt }];
+		const prompt = currentPrompt.trim();
+		currentPrompt = '';
+		errorMessage = '';
+
+		promptHistory = [...promptHistory, { role: 'user', text: prompt }];
+
+		const isFirstMessage = conversationHistory.length === 0;
+		const userMessage = isFirstMessage
+			? `Generate a LinkedIn post based on the content I provided. Here are my instructions:\n\n${prompt}`
+			: prompt;
+
+		conversationHistory = [...conversationHistory, { role: 'user', content: userMessage }];
 
 		isGenerating = true;
-		// AI integration will be wired in Phase 5
-		setTimeout(() => {
-			generatedPost =
-				'[AI-generated post will appear here once the AI engine is connected in Phase 5]\n\nThis is a placeholder showing where your polished LinkedIn post will be generated based on your content and prompts.';
+
+		try {
+			const res = await fetch('/api/generate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					content: manualContent,
+					conversationHistory
+				})
+			});
+
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({ message: 'Request failed' }));
+				throw new Error(err.message || `HTTP ${res.status}`);
+			}
+
+			const data = await res.json();
+			generatedPost = data.post;
+
+			conversationHistory = [
+				...conversationHistory,
+				{ role: 'assistant', content: data.post }
+			];
 			promptHistory = [
 				...promptHistory,
-				{ role: 'ai', text: 'Post generated. How would you like to refine it?' }
+				{ role: 'ai', text: isFirstMessage ? 'Post generated! How would you like to refine it?' : 'Updated. Any more changes?' }
 			];
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Something went wrong';
+			errorMessage = message;
+			promptHistory = [...promptHistory, { role: 'ai', text: `Error: ${message}` }];
+			conversationHistory = conversationHistory.slice(0, -1);
+		} finally {
 			isGenerating = false;
-		}, 1000);
-
-		currentPrompt = '';
+		}
 	}
 
 	function handleCopy() {
 		if (generatedPost) {
 			navigator.clipboard.writeText(generatedPost);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
 		}
 	}
 
@@ -36,6 +78,81 @@
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			handleGenerate();
+		}
+	}
+
+	function handleNewPost() {
+		generatedPost = '';
+		promptHistory = [];
+		conversationHistory = [];
+		manualContent = '';
+		currentPrompt = '';
+		errorMessage = '';
+		saved = false;
+	}
+
+	async function handleSavePost() {
+		if (!generatedPost || isSaving) return;
+
+		isSaving = true;
+		try {
+			const res = await fetch('/api/posts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					generatedContent: generatedPost,
+					rawInput: manualContent,
+					conversationHistory,
+					status: 'draft'
+				})
+			});
+
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({ message: 'Save failed' }));
+				throw new Error(err.message || `HTTP ${res.status}`);
+			}
+
+			saved = true;
+			promptHistory = [...promptHistory, { role: 'ai', text: 'Post saved to your library.' }];
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Failed to save';
+			promptHistory = [...promptHistory, { role: 'ai', text: `Error saving: ${message}` }];
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	async function handleSaveTemplate() {
+		if (conversationHistory.length === 0 || isSaving) return;
+
+		const name = window.prompt('Give this template a name:');
+		if (!name?.trim()) return;
+
+		isSaving = true;
+		try {
+			const res = await fetch('/api/templates', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: name.trim(),
+					conversationHistory
+				})
+			});
+
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({ message: 'Save failed' }));
+				throw new Error(err.message || `HTTP ${res.status}`);
+			}
+
+			promptHistory = [
+				...promptHistory,
+				{ role: 'ai', text: `Template "${name.trim()}" saved! Find it in the Templates page.` }
+			];
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Failed to save';
+			promptHistory = [...promptHistory, { role: 'ai', text: `Error saving template: ${message}` }];
+		} finally {
+			isSaving = false;
 		}
 	}
 </script>
@@ -92,23 +209,32 @@
 				<h3 class="text-sm font-medium">Generated Post</h3>
 				<div class="flex gap-2">
 					<button
+						onclick={handleNewPost}
+						disabled={conversationHistory.length === 0}
+						class="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+					>
+						New Post
+					</button>
+					<button
 						onclick={handleCopy}
 						disabled={!generatedPost}
 						class="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
 					>
-						Copy
+						{copied ? 'Copied!' : 'Copy'}
 					</button>
 					<button
-						disabled={!generatedPost}
+						onclick={handleSavePost}
+						disabled={!generatedPost || isSaving || saved}
 						class="rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
 					>
-						Save Post
+						{saved ? 'Saved!' : isSaving ? 'Saving...' : 'Save Post'}
 					</button>
 					<button
-						disabled={promptHistory.length === 0}
+						onclick={handleSaveTemplate}
+						disabled={conversationHistory.length === 0 || isSaving}
 						class="rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-40"
 					>
-						Save as Template
+						{isSaving ? 'Saving...' : 'Save as Template'}
 					</button>
 				</div>
 			</div>
@@ -171,6 +297,9 @@
 
 			<!-- Prompt input -->
 			<div class="border-t border-border p-4">
+				{#if !manualContent.trim() && contentMode === 'manual'}
+					<p class="mb-2 text-xs text-amber-500">Paste your content above before generating.</p>
+				{/if}
 				<div class="flex gap-2">
 					<textarea
 						bind:value={currentPrompt}
@@ -181,10 +310,10 @@
 					></textarea>
 					<button
 						onclick={handleGenerate}
-						disabled={!currentPrompt.trim() || isGenerating}
+						disabled={!currentPrompt.trim() || isGenerating || (!manualContent.trim() && contentMode === 'manual')}
 						class="self-end rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
 					>
-						Send
+						{isGenerating ? '...' : 'Send'}
 					</button>
 				</div>
 			</div>
