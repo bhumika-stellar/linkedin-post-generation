@@ -27,6 +27,26 @@
 	let notionPageId = $state($page.data.settings?.notionJournalPageId ?? '');
 	let notionSaveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
+	async function saveAiSettings() {
+		aiSaveStatus = 'saving';
+		try {
+			const res = await fetch('/api/settings', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					preferredModel: selectedModel,
+					...(openrouterKey ? { openrouterApiKey: openrouterKey } : {})
+				})
+			});
+			if (!res.ok) throw new Error(await res.text());
+			aiSaveStatus = 'saved';
+			openrouterKey = '';
+			setTimeout(() => (aiSaveStatus = 'idle'), 3000);
+		} catch {
+			aiSaveStatus = 'error';
+		}
+	}
+
 	async function saveNotionSettings() {
 		notionSaveStatus = 'saving';
 		try {
@@ -55,6 +75,25 @@
 		<p class="mt-1 text-sm text-muted-foreground">
 			Configure your AI model, API key, and integrations.
 		</p>
+	</div>
+
+	<!-- Onboarding callout — shown to everyone, explains the two main levers -->
+	<div class="mb-8 rounded-xl border border-border bg-muted/30 p-4">
+		<p class="text-sm font-medium">Two things worth setting up</p>
+		<div class="mt-3 grid gap-3 sm:grid-cols-2">
+			<div class="rounded-lg border border-border bg-background p-3">
+				<p class="text-xs font-medium">Notion integration</p>
+				<p class="mt-1 text-xs text-muted-foreground leading-relaxed">
+					Connect your Notion workspace and pick a journal root page. On the Generate screen you can then pull any sub-page directly — no copy-paste needed.
+				</p>
+			</div>
+			<div class="rounded-lg border border-border bg-background p-3">
+				<p class="text-xs font-medium">OpenRouter API key <span class="font-normal text-muted-foreground">(optional)</span></p>
+				<p class="mt-1 text-xs text-muted-foreground leading-relaxed">
+					Free models work out of the box. Add your own OpenRouter key to unlock GPT-4o, Claude Sonnet, and other paid models with no rate limits.
+				</p>
+			</div>
+		</div>
 	</div>
 
 	<div class="max-w-2xl space-y-8">
@@ -123,8 +162,23 @@
 					/>
 					<p class="mt-1 text-xs text-muted-foreground">
 						Get a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" class="text-primary underline">openrouter.ai/keys</a>.
-						Your key is stored encrypted. Saving to your profile will be wired in a later phase.
+						Required for paid models. Free models work without one.
 					</p>
+				</div>
+
+				<div class="flex items-center gap-3">
+					<button
+						onclick={saveAiSettings}
+						disabled={aiSaveStatus === 'saving'}
+						class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+					>
+						{aiSaveStatus === 'saving' ? 'Saving…' : 'Save AI Settings'}
+					</button>
+					{#if aiSaveStatus === 'saved'}
+						<span class="text-sm text-green-600 dark:text-green-400">Saved!</span>
+					{:else if aiSaveStatus === 'error'}
+						<span class="text-sm text-destructive">Failed to save. Try again.</span>
+					{/if}
 				</div>
 			</div>
 		</section>
