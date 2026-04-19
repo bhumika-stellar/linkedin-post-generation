@@ -1,23 +1,42 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { generatePost } from '$lib/server/ai';
+import { generatePostStream } from '$lib/server/ai';
+import { UserModel } from '$lib/server/db/models/user';
 
 export const POST: RequestHandler = async (event) => {
 	const session = await event.locals.auth();
-	if (!session?.user) {
+	if (!session?.user?.id) {
 		error(401, 'Not authenticated');
 	}
 
 	const body = await event.request.json();
-	const { content, conversationHistory = [], model } = body;
+	const { content = '', conversationHistory = [], model, tone = '' } = body;
 
-	if (!content || typeof content !== 'string') {
-		error(400, 'content is required and must be a string');
+	if (typeof content !== 'string') {
+		error(400, 'content must be a string');
 	}
 
+	// Use the per-user OpenRouter key when available, fall back to the server key.
+	const user = await UserModel.findById(session.user.id);
+	const apiKey = user?.openrouterApiKey ?? undefined;
+
 	try {
-		const post = await generatePost(content, conversationHistory, model);
-		return json({ post });
+		const stream = await generatePostStream(
+			content,
+			conversationHistory,
+			model,
+			tone,
+			apiKey
+		);
+
+		return new Response(stream, {
+			headers: {
+				'Content-Type': 'text/plain; charset=utf-8',
+				// Tell Vercel / nginx not to buffer the stream.
+				'X-Accel-Buffering': 'no',
+				'Cache-Control': 'no-cache'
+			}
+		});
 	} catch (err) {
 		console.error('AI generation failed:', err);
 		const message = err instanceof Error ? err.message : 'Unknown error';

@@ -1,23 +1,21 @@
-import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { UserModel } from '$lib/server/db/models/user';
+import { DEFAULT_MODEL } from '$lib/server/ai';
 
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
-	if (!session?.user?.id) {
-		redirect(303, '/login');
-	}
+	// The (app) layout already redirects unauthenticated users, but we guard
+	// here too so TypeScript knows session.user.id is defined below.
+	if (!session?.user?.id) return { settings: null };
 
 	const user = await UserModel.findById(session.user.id);
 
-	// Only expose the fields the settings page needs — never send the full
-	// user record to the client (it could contain sensitive data).
 	return {
 		settings: {
-			preferredModel: user?.preferredModel ?? null,
-			hasOpenrouterKey: !!user?.openrouterApiKey,
+			preferredModel: user?.preferredModel ?? DEFAULT_MODEL,
+			// Never send the raw token to the client — just whether one exists.
 			hasNotionToken: !!user?.notionAccessToken,
-			notionJournalPageId: user?.notionJournalPageId ?? null
+			notionJournalPageId: user?.notionJournalPageId ?? ''
 		}
 	};
 };
