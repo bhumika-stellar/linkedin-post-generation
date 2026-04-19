@@ -1,8 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { generatedPosts } from '$lib/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { PostModel } from '$lib/server/db/models';
 
 export const DELETE: RequestHandler = async (event) => {
 	const session = await event.locals.auth();
@@ -12,9 +10,7 @@ export const DELETE: RequestHandler = async (event) => {
 
 	const { id } = event.params;
 
-	await db
-		.delete(generatedPosts)
-		.where(and(eq(generatedPosts.id, id), eq(generatedPosts.userId, session.user.id)));
+	await PostModel.delete(id, session.user.id);
 
 	return json({ message: 'Post deleted' });
 };

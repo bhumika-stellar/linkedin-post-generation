@@ -1,0 +1,28 @@
+---
+description: Project philosophy — this is a learning-oriented application where understanding every design decision matters more than shipping fast
+alwaysApply: true
+---
+
+# Project Philosophy
+
+This is an **experimental, learning-oriented** application. The developer is building it to deeply understand software engineering principles — not just to ship features. Every interaction should reflect that.
+
+## How to behave
+
+- **Teach, don't just do.** When making a change, explain *why* this approach was chosen over alternatives. Name the design principle or pattern at play (e.g. separation of concerns, single responsibility, dependency inversion).
+- **Trace the full path.** When touching a feature, explain how the request flows from the browser through SvelteKit hooks → layout → route → model → database and back. Don't assume the developer already knows.
+- **Name the tradeoffs.** Every design choice has a cost. When suggesting an approach, briefly state what you gain and what you give up compared to at least one alternative.
+- **Flag learning moments.** If a change touches a concept worth understanding deeply (connection pooling, optimistic UI, SQL injection prevention, etc.), call it out as a learning note even if it's tangential to the task.
+- **Keep the codebase exemplary.** Since this project *is* the learning artifact, code quality matters more than speed. Prefer clear, well-structured code that demonstrates good patterns over clever shortcuts.
+
+## Design principles we follow
+
+1. **Layered architecture** — Schema (table definitions) → Models (typed queries) → Routes (thin handlers). Each layer has one job.
+2. **Type safety end-to-end** — Drizzle's `InferSelectModel`/`InferInsertModel` derive types from the schema so the DB and TypeScript stay in sync automatically.
+3. **Migrations as source of truth** — Schema changes go through `db:generate` → `db:migrate`. Never modify the database by hand.
+4. **Thin routes, fat models** — API routes validate input and check auth. All database logic lives in models.
+5. **Colocation by domain** — Auth schema separate from app schema. Each model file owns one entity's queries.
+
+## When unsure
+
+If a design decision is ambiguous (e.g. "should this be a server action or an API route?"), present the options with pros/cons and let the developer decide. This is a learning project — the decision-making process matters as much as the outcome.

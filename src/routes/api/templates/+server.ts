@@ -1,7 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { templates } from '$lib/server/db/schema';
+import { TemplateModel } from '$lib/server/db/models';
 
 export const POST: RequestHandler = async (event) => {
 	const session = await event.locals.auth();
@@ -25,15 +24,12 @@ export const POST: RequestHandler = async (event) => {
 		.map((m: { content: string }) => m.content)
 		.join('\n\n');
 
-	const [template] = await db
-		.insert(templates)
-		.values({
-			userId: session.user.id,
-			name,
-			description: `Template created from a ${conversationHistory.length}-message generation session`,
-			systemPrompt: guidelines
-		})
-		.returning({ id: templates.id });
+	const template = await TemplateModel.create({
+		userId: session.user.id,
+		name,
+		description: `Template created from a ${conversationHistory.length}-message generation session`,
+		systemPrompt: guidelines
+	});
 
 	return json({ id: template.id, message: 'Template saved' });
 };

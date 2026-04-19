@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "notion_journal_page_id" text;

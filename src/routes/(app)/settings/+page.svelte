@@ -2,12 +2,13 @@
 	import { page } from '$app/stores';
 
 	const session = $derived($page.data.session);
+	const settings = $derived($page.data.settings);
 
 	const FREE_MODELS = [
-		{ id: 'qwen/qwen3.6-plus:free', name: 'Qwen 3.6 Plus (Free)' },
-		{ id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)' },
-		{ id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)' },
-		{ id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 405B (Free)' }
+		{ id: 'openrouter/free', name: 'Auto (Best Available Free)' },
+		{ id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (Free)' },
+		{ id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'NVIDIA Nemotron 120B (Free)' },
+		{ id: 'openai/gpt-oss-20b:free', name: 'OpenAI OSS 20B (Free)' }
 	];
 
 	const PAID_MODELS = [
@@ -17,9 +18,35 @@
 		{ id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku' }
 	];
 
-	let selectedModel = $state(FREE_MODELS[0].id);
+	let selectedModel = $state($page.data.settings?.preferredModel ?? FREE_MODELS[0].id);
 	let openrouterKey = $state('');
-	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+	let aiSaveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+	// Notion state — pre-filled from the server load
+	let notionToken = $state('');
+	let notionPageId = $state($page.data.settings?.notionJournalPageId ?? '');
+	let notionSaveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+	async function saveNotionSettings() {
+		notionSaveStatus = 'saving';
+		try {
+			const res = await fetch('/api/settings', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					// Only send the token if the user typed a new one
+					...(notionToken ? { notionAccessToken: notionToken } : {}),
+					notionJournalPageId: notionPageId
+				})
+			});
+			if (!res.ok) throw new Error(await res.text());
+			notionSaveStatus = 'saved';
+			notionToken = ''; // clear the secret field after saving
+			setTimeout(() => (notionSaveStatus = 'idle'), 3000);
+		} catch {
+			notionSaveStatus = 'error';
+		}
+	}
 </script>
 
 <div class="p-4 lg:p-6">
@@ -107,22 +134,68 @@
 			<h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">
 				Notion Integration
 			</h2>
-			<div class="mt-3 rounded-xl border border-border p-4">
-				<div class="flex items-center justify-between">
-					<div>
-						<p class="text-sm font-medium">Notion Workspace</p>
-						<p class="text-xs text-muted-foreground">Not connected</p>
+			<div class="mt-3 space-y-4">
+				{#if settings?.hasNotionToken}
+					<div class="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+						<svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+						</svg>
+						Integration token saved. Enter a new one below to rotate it.
 					</div>
-					<button
-						class="rounded-lg bg-secondary px-3 py-1.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
-						disabled
-					>
-						Connect Notion
-					</button>
+				{/if}
+
+				<div>
+					<label for="notion-token" class="mb-1.5 block text-sm font-medium">
+						Integration Token
+						{#if settings?.hasNotionToken}
+							<span class="font-normal text-muted-foreground">(leave blank to keep existing)</span>
+						{/if}
+					</label>
+					<input
+						id="notion-token"
+						type="password"
+						bind:value={notionToken}
+						placeholder="ntn_..."
+						class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+					/>
+					<p class="mt-1 text-xs text-muted-foreground">
+						Create an internal integration at
+						<a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener" class="text-primary underline">notion.so/my-integrations</a>
+						and share your journal page with it.
+					</p>
 				</div>
-				<p class="mt-2 text-xs text-muted-foreground">
-					Notion integration will be available in a future phase.
-				</p>
+
+				<div>
+					<label for="notion-page-id" class="mb-1.5 block text-sm font-medium">
+						Journal Page ID
+					</label>
+					<input
+						id="notion-page-id"
+						type="text"
+						bind:value={notionPageId}
+						placeholder="253b1886b5968008acd8d25d12da082d"
+						class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+					/>
+					<p class="mt-1 text-xs text-muted-foreground">
+						The ID is the last part of your journal page URL — e.g.
+						<code class="rounded bg-muted px-1 py-0.5">notion.so/Work-Journal-<strong>253b1886...</strong></code>
+					</p>
+				</div>
+
+				<div class="flex items-center gap-3">
+					<button
+						onclick={saveNotionSettings}
+						disabled={notionSaveStatus === 'saving'}
+						class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+					>
+						{notionSaveStatus === 'saving' ? 'Saving…' : 'Save Notion Settings'}
+					</button>
+					{#if notionSaveStatus === 'saved'}
+						<span class="text-sm text-green-600 dark:text-green-400">Saved!</span>
+					{:else if notionSaveStatus === 'error'}
+						<span class="text-sm text-destructive">Failed to save. Try again.</span>
+					{/if}
+				</div>
 			</div>
 		</section>
 	</div>

@@ -13,10 +13,10 @@ Guidelines:
 - Do not use hashtags unless asked`;
 
 export const FREE_MODELS = [
-	{ id: 'qwen/qwen3.6-plus:free', name: 'Qwen 3.6 Plus (Free)' },
-	{ id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)' },
-	{ id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)' },
-	{ id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 405B (Free)' }
+	{ id: 'openrouter/free', name: 'Auto (Best Available Free)' },
+	{ id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (Free)' },
+	{ id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'NVIDIA Nemotron 120B (Free)' },
+	{ id: 'openai/gpt-oss-20b:free', name: 'OpenAI OSS 20B (Free)' }
 ] as const;
 
 export const PAID_MODELS = [
@@ -70,9 +70,10 @@ export async function generatePost(
 			return response.choices[0]?.message?.content ?? '';
 		} catch (err: unknown) {
 			const status = (err as { status?: number })?.status;
-			// Only fall through to the next model on rate-limit errors
-			if (status === 429) {
-				console.warn(`Model ${candidate} is rate-limited, trying next fallback…`);
+			// Fall through to the next model on rate-limit (429) or model-not-found (404)
+			// 404 happens when a free model is deprecated or temporarily unavailable
+			if (status === 429 || status === 404) {
+				console.warn(`Model ${candidate} unavailable (${status}), trying next fallback…`);
 				lastError = err;
 				continue;
 			}

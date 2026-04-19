@@ -1,16 +1,10 @@
 import type { PageServerLoad } from './$types';
-import { db } from '$lib/server/db';
-import { templates } from '$lib/server/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { TemplateModel } from '$lib/server/db/models';
 
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
 
-	const userTemplates = await db
-		.select()
-		.from(templates)
-		.where(eq(templates.userId, session!.user!.id!))
-		.orderBy(desc(templates.createdAt));
+	const templates = await TemplateModel.findByUser(session!.user!.id!);
 
-	return { templates: userTemplates };
+	return { templates };
 };

@@ -1,7 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { generatedPosts } from '$lib/server/db/schema';
+import { PostModel } from '$lib/server/db/models';
 
 export const POST: RequestHandler = async (event) => {
 	const session = await event.locals.auth();
@@ -16,16 +15,13 @@ export const POST: RequestHandler = async (event) => {
 		error(400, 'generatedContent is required');
 	}
 
-	const [post] = await db
-		.insert(generatedPosts)
-		.values({
-			userId: session.user.id,
-			rawInput,
-			generatedContent,
-			conversationHistory,
-			status
-		})
-		.returning({ id: generatedPosts.id });
+	const post = await PostModel.create({
+		userId: session.user.id,
+		rawInput,
+		generatedContent,
+		conversationHistory,
+		status
+	});
 
 	return json({ id: post.id, message: 'Post saved' });
 };

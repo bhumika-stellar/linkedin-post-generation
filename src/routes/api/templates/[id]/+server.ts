@@ -1,8 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
-import { templates } from '$lib/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { TemplateModel } from '$lib/server/db/models';
 
 export const DELETE: RequestHandler = async (event) => {
 	const session = await event.locals.auth();
@@ -12,9 +10,7 @@ export const DELETE: RequestHandler = async (event) => {
 
 	const { id } = event.params;
 
-	await db
-		.delete(templates)
-		.where(and(eq(templates.id, id), eq(templates.userId, session.user.id)));
+	await TemplateModel.delete(id, session.user.id);
 
 	return json({ message: 'Template deleted' });
 };
