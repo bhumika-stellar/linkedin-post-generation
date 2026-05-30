@@ -1,4 +1,5 @@
 import type { PageServerLoad } from './$types';
+import { env } from '$env/dynamic/private';
 import { UserModel, AutomationSettingModel } from '$lib/server/db/models';
 import { listJournalPages } from '$lib/server/notion';
 import { DEFAULT_MODEL } from '$lib/server/ai';
@@ -57,6 +58,6 @@ export const load: PageServerLoad = async (event) => {
 				}
 			: null,
 		notionPages,
-		appUrl: process.env.PUBLIC_APP_URL ?? 'http://localhost:5176'
+		appUrl: env.APP_URL ?? 'http://localhost:5176'
 	};
 };

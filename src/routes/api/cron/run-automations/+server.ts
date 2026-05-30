@@ -120,7 +120,7 @@ export const GET: RequestHandler = async (event) => {
 
 			if (user.email) {
 				const preview = generated.slice(0, 100);
-				const appUrl = env.PUBLIC_APP_URL ?? 'http://localhost:5176';
+				const appUrl = env.APP_URL ?? 'http://localhost:5176';
 				await sendDraftReadyEmail(user.email, postId, preview, appUrl);
 			}
 		} catch (err) {
