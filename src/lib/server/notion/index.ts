@@ -20,6 +20,53 @@ export interface NotionPage {
 	lastEditedTime: string;
 }
 
+/**
+ * A raw image extracted from a Notion block. The URL is temporary (Notion
+ * signs it with a 1-hour expiry for file-type images). Callers must download
+ * and store the image immediately — never persist these URLs to the database.
+ */
+export interface NotionImage {
+	blockId: string;
+	url: string;     // temporary signed URL — expires in ~1 hour for 'file' type
+	altText: string; // extracted from the block's caption
+}
+
+/**
+ * Combined result of parsing a Notion page. Text is a plain-text / light
+ * markdown representation suitable for the AI prompt; images are the raw
+ * block-level images that must be stored by the caller before the URLs expire.
+ */
+export interface PageContent {
+	text: string;
+	images: NotionImage[];
+}
+
+// ---------------------------------------------------------------------------
+// Pagination helper
+// ---------------------------------------------------------------------------
+// The Notion API paginates all list endpoints. blocks.children.list returns
+// up to 100 blocks per page and sets has_more=true when more exist. Without
+// following the cursor, pages/blocks beyond the first batch are silently lost.
+
+async function listAllChildren(
+	notion: Client,
+	blockId: string
+): Promise<(BlockObjectResponse | PartialBlockObjectResponse)[]> {
+	const all: (BlockObjectResponse | PartialBlockObjectResponse)[] = [];
+	let cursor: string | undefined;
+
+	do {
+		const response = await notion.blocks.children.list({
+			block_id: blockId,
+			start_cursor: cursor
+		});
+		all.push(...response.results);
+		cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
+	} while (cursor);
+
+	return all;
+}
+
 // ---------------------------------------------------------------------------
 // List journal sub-pages
 // ---------------------------------------------------------------------------
@@ -32,13 +79,11 @@ export async function listJournalPages(credentials: NotionCredentials): Promise<
 	const notion = new Client({ auth: credentials.apiKey });
 	const parentId = credentials.journalPageId;
 
-	const response = await notion.blocks.children.list({ block_id: parentId });
+	const blocks = await listAllChildren(notion, parentId);
 
 	const pages: NotionPage[] = [];
 
-	for (const block of response.results) {
-		// Notion returns two types: full BlockObjectResponse or partial.
-		// Partial blocks have no type field, so we guard against that.
+	for (const block of blocks) {
 		if (!('type' in block)) continue;
 		if (block.type !== 'child_page') continue;
 
@@ -53,38 +98,63 @@ export async function listJournalPages(credentials: NotionCredentials): Promise<
 }
 
 // ---------------------------------------------------------------------------
-// Fetch a single page's content as plain text
+// Fetch a single page's content as text + images
 // ---------------------------------------------------------------------------
 // Notion stores page content as a tree of "blocks". Each block has a type
-// (paragraph, heading_1, bulleted_list_item, etc.) and a rich_text array.
-// We recursively walk the tree and extract the plain text from each block,
-// adding appropriate formatting so the AI can understand the structure.
+// (paragraph, heading_1, bulleted_list_item, image, etc.) and a rich_text
+// array. We recursively walk the tree, extract plain text from text blocks,
+// and collect image blocks separately.
+//
+// Why separate text and images?
+//   Text goes to the AI prompt as a string. Images are binary assets that
+//   need to be downloaded and stored before Notion's signed URLs expire (~1h).
+//   Mixing concerns in a single string would make both jobs harder.
 
-export async function getPageContent(pageId: string, credentials: NotionCredentials): Promise<string> {
+export async function getPageContent(pageId: string, credentials: NotionCredentials): Promise<PageContent> {
 	const notion = new Client({ auth: credentials.apiKey });
 	const lines: string[] = [];
+	const images: NotionImage[] = [];
 
-	await collectBlocks(notion, pageId, lines, 0);
-	return lines.join('\n');
+	await collectBlocks(notion, pageId, lines, images, 0);
+	return { text: lines.join('\n'), images };
 }
 
 async function collectBlocks(
 	notion: Client,
 	blockId: string,
 	lines: string[],
+	images: NotionImage[],
 	depth: number
 ): Promise<void> {
-	const response = await notion.blocks.children.list({ block_id: blockId });
+	const blocks = await listAllChildren(notion, blockId);
 
-	for (const block of response.results) {
+	for (const block of blocks) {
 		if (!('type' in block)) continue;
+
+		// Image blocks are handled separately — they yield no text line.
+		if (block.type === 'image') {
+			const img = block.image;
+			// Notion images are either uploaded ('file') or externally linked
+			// ('external'). File URLs are signed and expire in ~1 hour.
+			const url =
+				img.type === 'file'
+					? img.file.url
+					: img.type === 'external'
+						? img.external.url
+						: '';
+			const altText = extractText(img.caption);
+			if (url) {
+				images.push({ blockId: block.id, url, altText });
+			}
+			continue;
+		}
 
 		const line = blockToText(block, depth);
 		if (line !== null) lines.push(line);
 
 		// If this block has children (e.g. a toggle or nested list), recurse.
 		if (block.has_children) {
-			await collectBlocks(notion, block.id, lines, depth + 1);
+			await collectBlocks(notion, block.id, lines, images, depth + 1);
 		}
 	}
 }

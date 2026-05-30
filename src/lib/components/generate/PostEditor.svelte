@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Button from '$lib/components/Button.svelte';
+	import type { PostImage } from '$lib/server/db/schema/app';
 
 	interface Props {
 		generatedPost?: string;
@@ -10,6 +11,7 @@
 		saved: boolean;
 		copied: boolean;
 		hasConversation: boolean;
+		attachedImages?: PostImage[];
 		onNewPost: () => void;
 		onCopy: () => void;
 		onSave: () => void;
@@ -26,6 +28,7 @@
 		saved,
 		copied,
 		hasConversation,
+		attachedImages = [],
 		onNewPost,
 		onCopy,
 		onSave,
@@ -39,9 +42,9 @@
 	}
 </script>
 
-<div class="flex flex-1 flex-col border-r border-border overflow-hidden">
+<div class="flex min-h-0 flex-1 flex-col overflow-hidden border-r border-border">
 	<!-- Header -->
-	<div class="flex items-center justify-between border-b border-border px-4 py-2.5 lg:px-6">
+	<div class="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5 lg:px-6">
 		<h3 class="text-sm font-medium">Generated Post</h3>
 		<div class="flex items-center gap-1">
 			<Button onclick={onNewPost} disabled={!hasConversation}>New</Button>
@@ -70,7 +73,7 @@
 	</div>
 
 	<!-- Post body -->
-	<div class="flex-1 overflow-y-auto p-4 lg:p-6">
+	<div class="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">
 		{#if generatedPost || isGenerating}
 			<textarea
 				bind:value={generatedPost}
@@ -130,9 +133,30 @@
 		{/if}
 	</div>
 
+	<!-- Attached images (from Notion) -->
+	{#if attachedImages.length > 0}
+		<div class="shrink-0 border-t border-border px-4 py-2.5">
+			<div class="flex items-center gap-2">
+				<span class="shrink-0 text-xs text-muted-foreground">
+					{attachedImages.length} image{attachedImages.length > 1 ? 's' : ''} will be posted to LinkedIn
+				</span>
+				<div class="flex flex-wrap gap-1">
+					{#each attachedImages as img}
+						<img
+							src={img.blobUrl}
+							alt={img.altText || 'Attached image'}
+							class="h-8 w-8 rounded object-cover ring-1 ring-border"
+							title={img.altText || undefined}
+						/>
+					{/each}
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Hashtag suggestions -->
 	{#if suggestedHashtags.length > 0 || isLoadingHashtags}
-		<div class="border-t border-border px-4 py-2">
+		<div class="shrink-0 border-t border-border px-4 py-2">
 			<div class="flex flex-wrap items-center gap-1.5">
 				<span class="shrink-0 text-xs text-muted-foreground">Hashtags:</span>
 				{#if isLoadingHashtags}

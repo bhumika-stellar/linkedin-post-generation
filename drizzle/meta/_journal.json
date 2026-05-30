@@ -15,6 +15,27 @@
       "when": 1776617266724,
       "tag": "0001_sharp_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777476908582,
+      "tag": "0002_glossy_crystal",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779842738210,
+      "tag": "0003_solid_mister_sinister",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780172198152,
+      "tag": "0004_groovy_cannonball",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,63 @@
+---
+description: After building or significantly modifying a feature, write a CONTEXT.md file to preserve architectural knowledge
+alwaysApply: true
+---
+
+# Document Context After Every Feature
+
+After completing a feature or making significant changes to a module, create or update a `CONTEXT.md` file in the relevant directory. This preserves architectural knowledge for future sessions.
+
+## When to write
+
+- After building a **new feature** (new route, new model, new component group)
+- After **significant refactors** that change how a module works
+- After adding a **new integration** (external API, new library, new service)
+- Do NOT create one for trivial changes (typo fixes, single-line tweaks)
+
+## Where to place it
+
+Put `CONTEXT.md` in the **most specific directory** that owns the feature:
+
+```
+src/lib/server/db/schema/CONTEXT.md    ← covers all schema files
+src/lib/server/ai/CONTEXT.md           ← covers AI/generation logic
+src/routes/(app)/generate/CONTEXT.md   ← covers the generate page
+src/lib/server/automation/CONTEXT.md   ← covers automation system
+```
+
+## What to include
+
+Every `CONTEXT.md` must answer these questions:
+
+```markdown
+# [Module/Feature Name]
+
+## Purpose
+What does this module do? One or two sentences.
+
+## How it works
+Step-by-step flow of the main operation (e.g., "User clicks Generate →
+API route validates → AI model called → post saved to DB").
+
+## Key files
+| File | Responsibility |
+|------|---------------|
+| `index.ts` | Main entry point, exports X and Y |
+| `schema.ts` | Drizzle table definitions for ... |
+
+## Design decisions
+- **Why X over Y?** Explanation of the tradeoff.
+- **Why this pattern?** Name the principle (SRP, DI, etc.).
+
+## Gotchas
+Anything non-obvious: env vars needed, rate limits, ordering
+dependencies, migration steps, etc.
+```
+
+## Rules
+
+1. **Be concise.** Aim for 30–80 lines. If it's longer, the module may need splitting.
+2. **Write for future-you.** Assume you haven't looked at this code in 3 months.
+3. **Update, don't duplicate.** If a `CONTEXT.md` already exists, update the relevant sections rather than appending redundant info.
+4. **Reference, don't repeat.** Link to other `CONTEXT.md` files instead of re-explaining shared concepts.
+5. **Always ask before skipping.** If the change seems too small to document, confirm with the developer before omitting.

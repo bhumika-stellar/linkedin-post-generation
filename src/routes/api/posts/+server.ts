@@ -9,7 +9,7 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	const body = await event.request.json();
-	const { generatedContent, rawInput, conversationHistory = [], status = 'draft' } = body;
+	const { generatedContent, rawInput, conversationHistory = [], images = [], status = 'draft' } = body;
 
 	if (!generatedContent || typeof generatedContent !== 'string') {
 		error(400, 'generatedContent is required');
@@ -20,6 +20,9 @@ export const POST: RequestHandler = async (event) => {
 		rawInput,
 		generatedContent,
 		conversationHistory,
+		// PostImage[] — empty array for text-only posts, populated when the
+		// source Notion page contained image blocks.
+		images: Array.isArray(images) ? images : [],
 		status
 	});
 

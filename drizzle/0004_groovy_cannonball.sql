@@ -1,0 +1,1 @@
+ALTER TABLE "automation_setting" ADD COLUMN "draft_time" text DEFAULT '08:00' NOT NULL;

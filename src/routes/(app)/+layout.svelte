@@ -8,6 +8,7 @@
 	let guideOpen = $state(false);
 
 	const session = $derived($page.data.session);
+	const pendingReviewCount = $derived(($page.data.pendingReviewCount as number) ?? 0);
 
 	const navItems = [
 		{ href: '/generate',   label: 'Generate',   icon: 'sparkles' },
@@ -76,7 +77,7 @@
 						href={item.href}
 						onclick={() => (sidebarOpen = false)}
 						title={sc ? item.label : undefined}
-						class="flex items-center rounded-lg py-2 text-sm font-medium transition-colors
+						class="relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors
 						{sc ? 'justify-center px-2' : 'gap-3 px-3'}
 						{isActive(item.href)
 							? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -91,7 +92,18 @@
 							<svg class="h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
 						{/if}
 						{#if !sc}
-							<span>{item.label}</span>
+							<span class="flex-1">{item.label}</span>
+							{#if item.href === '/posts' && pendingReviewCount > 0}
+								<span
+									class="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground"
+									title="{pendingReviewCount} draft{pendingReviewCount === 1 ? '' : 's'} awaiting review"
+								>
+									{pendingReviewCount}
+								</span>
+							{/if}
+						{:else if item.href === '/posts' && pendingReviewCount > 0}
+							<!-- Collapsed sidebar: show a small dot instead of the count -->
+							<span class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary"></span>
 						{/if}
 					</a>
 				{/each}

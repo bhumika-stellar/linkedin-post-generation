@@ -101,7 +101,7 @@
 	}
 </script>
 
-<div class="flex min-w-0 flex-1 flex-col">
+<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 
 	<!-- ── Header ──────────────────────────────────────────────────────────── -->
 	<div class="flex shrink-0 items-center gap-1.5 border-b border-border px-3 py-2.5">
@@ -175,7 +175,7 @@
 
 	{#if writeMode}
 		<!-- ── Write mode: full-height compose ─────────────────────────────── -->
-		<div class="flex flex-1 flex-col gap-3 overflow-hidden p-4">
+		<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
 			<p class="shrink-0 text-xs text-muted-foreground">
 				Draft your full thoughts — the AI will shape them into a post.
 				<span class="text-muted-foreground/50">Shift+Enter for new line · Enter sends.</span>
@@ -203,7 +203,7 @@
 		<!-- ── Chat mode ────────────────────────────────────────────────────── -->
 
 		<!-- Message history (scrollable, flex-1) -->
-		<div bind:this={historyEl} class="flex-1 overflow-y-auto p-4">
+		<div bind:this={historyEl} class="min-h-0 flex-1 overflow-y-auto p-4">
 			{#if promptHistory.length === 0}
 				<div class="flex h-full flex-col justify-center gap-2.5">
 					<p class="text-xs text-muted-foreground/70">Tell the AI what post you want. Try one:</p>

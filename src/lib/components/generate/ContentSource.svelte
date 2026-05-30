@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { PostImage } from '$lib/server/db/schema/app';
+
 	interface NotionPage {
 		id: string;
 		title: string;
@@ -20,12 +22,14 @@
 		notionConfigured: boolean;
 		sourceContent?: string;
 		hasSourceContent?: boolean;
+		sourceImages?: PostImage[];
 	}
 
 	let {
 		notionConfigured,
 		sourceContent = $bindable(''),
-		hasSourceContent = $bindable(false)
+		hasSourceContent = $bindable(false),
+		sourceImages = $bindable<PostImage[]>([])
 	}: Props = $props();
 
 	// ── URL sources ───────────────────────────────────────────────────────────
@@ -36,6 +40,8 @@
 	let notionPages = $state<NotionPage[]>([]);
 	let selectedPageIds = $state<string[]>([]);
 	let pageContentsMap = $state<Record<string, string>>({});
+	// Images are keyed by page id — each page may have 0-N images.
+	let pageImagesMap = $state<Record<string, PostImage[]>>({});
 	let loadingPageIds = $state<string[]>([]);
 	let isLoadingPages = $state(false);
 	let notionError = $state('');
@@ -66,6 +72,12 @@
 			? `## Sources\n\n${sourceParts.join('\n\n---\n\n')}`
 			: '';
 		hasSourceContent = sourceParts.length > 0;
+	});
+
+	// Flatten images from all selected pages into a single array.
+	// The PostEditor receives this to show attached-image previews.
+	$effect(() => {
+		sourceImages = selectedPageIds.flatMap((id) => pageImagesMap[id] ?? []);
 	});
 
 	// ── URL helpers ───────────────────────────────────────────────────────────
@@ -142,9 +154,11 @@
 			const res = await fetch(`/api/notion/pages/${pageId}`);
 			if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? 'Failed');
 			const data = await res.json();
-			pageContentsMap = { ...pageContentsMap, [pageId]: data.content };
+			// Route now returns { content: string, images: PostImage[] }
+			pageContentsMap = { ...pageContentsMap, [pageId]: data.content ?? '' };
+			pageImagesMap = { ...pageImagesMap, [pageId]: Array.isArray(data.images) ? data.images : [] };
 		} catch {
-			// fail silently per page
+			// fail silently per page — broken page shouldn't block others
 		} finally {
 			loadingPageIds = loadingPageIds.filter((id) => id !== pageId);
 		}
@@ -170,28 +184,31 @@
 		showNotion = false;
 		selectedPageIds = [];
 		pageContentsMap = {};
+		pageImagesMap = {};
 		loadingPageIds = [];
 		notionError = '';
 	}
 
 	const fetchedCount = $derived(urls.filter((u) => u.status === 'done').length);
+	const totalImageCount = $derived(selectedPageIds.reduce((n, id) => n + (pageImagesMap[id]?.length ?? 0), 0));
 
 	// Collapsed summary text
 	const collapsedSummary = $derived(() => {
 		const parts: string[] = [];
 		if (fetchedCount > 0) parts.push(`${fetchedCount} source${fetchedCount > 1 ? 's' : ''}`);
 		if (selectedPageIds.length > 0) parts.push(`${selectedPageIds.length} Notion page${selectedPageIds.length > 1 ? 's' : ''}`);
+		if (totalImageCount > 0) parts.push(`${totalImageCount} image${totalImageCount > 1 ? 's' : ''}`);
 		return parts.length ? parts.join(' · ') : 'No sources added';
 	});
 
 	let expanded = $state(true);
 </script>
 
-<div class="border-b border-border">
+<div class="flex max-h-[40vh] shrink-0 flex-col border-b border-border">
 	<!-- ── Section header (always visible) ──────────────────────────────────── -->
 	<button
 		onclick={() => (expanded = !expanded)}
-		class="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-accent/40 lg:px-6"
+		class="flex w-full shrink-0 items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-accent/40 lg:px-6"
 	>
 		<h2 class="text-sm font-semibold">Sources</h2>
 		{#if !expanded}
@@ -211,7 +228,7 @@
 
 	{#if expanded}
 	<!-- ── URL sources ───────────────────────────────────────────────────────── -->
-	<div class="px-4 pb-4 pt-1 lg:px-6">
+	<div class="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1 lg:px-6">
 		<div class="mb-3 flex items-baseline justify-between">
 			<span class="text-xs text-muted-foreground">Articles, papers, or notes to reference</span>
 			{#if fetchedCount > 0}
@@ -314,8 +331,11 @@
 					<div class="flex items-center gap-2">
 						{#if selectedPageIds.length > 0}
 							<span class="text-xs text-foreground">{selectedPageIds.length} selected</span>
+							{#if totalImageCount > 0}
+								<span class="text-xs text-muted-foreground">· {totalImageCount} image{totalImageCount > 1 ? 's' : ''}</span>
+							{/if}
 							<button
-								onclick={() => { selectedPageIds = []; pageContentsMap = {}; }}
+								onclick={() => { selectedPageIds = []; pageContentsMap = {}; pageImagesMap = {}; }}
 								class="text-xs text-muted-foreground hover:text-foreground"
 							>
 								clear
@@ -348,6 +368,11 @@
 									<span class="min-w-0 flex-1 truncate text-xs">{p.title}</span>
 									{#if loadingPageIds.includes(p.id)}
 										<span class="animate-pulse text-xs text-muted-foreground">…</span>
+									{:else if selectedPageIds.includes(p.id) && (pageImagesMap[p.id]?.length ?? 0) > 0}
+										<!-- Small image badge next to selected pages that have images -->
+										<span class="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+											{pageImagesMap[p.id].length} img
+										</span>
 									{/if}
 								</label>
 							{/each}
@@ -362,6 +387,34 @@
 						↺
 					</button>
 				</div>
+
+				<!-- Image thumbnails for selected pages -->
+				{#if totalImageCount > 0}
+					<div class="mt-2.5">
+						<p class="mb-1.5 text-[10px] text-muted-foreground">
+							Images found — these will be attached to the LinkedIn post
+						</p>
+						<div class="flex flex-wrap gap-1.5">
+							{#each selectedPageIds as pageId}
+								{#each (pageImagesMap[pageId] ?? []) as img}
+									<div class="group relative">
+										<img
+											src={img.blobUrl}
+											alt={img.altText || 'Notion image'}
+											class="h-10 w-10 rounded object-cover ring-1 ring-border"
+										/>
+										{#if img.altText}
+											<!-- Tooltip on hover -->
+											<div class="pointer-events-none absolute bottom-full left-1/2 mb-1 hidden -translate-x-1/2 rounded bg-popover px-1.5 py-0.5 text-[10px] text-popover-foreground shadow group-hover:block">
+												{img.altText}
+											</div>
+										{/if}
+									</div>
+								{/each}
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
