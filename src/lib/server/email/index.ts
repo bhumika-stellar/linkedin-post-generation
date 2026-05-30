@@ -43,7 +43,7 @@ export async function sendDraftReadyEmail(
 
 	try {
 		const result = await resend.emails.send({
-			from: 'PostGen <notifications@getstellar.ai>',
+			from: 'PostGen <onboarding@resend.dev>',
 			to,
 			subject: 'New draft ready for review',
 			html: `
