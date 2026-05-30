@@ -15,6 +15,16 @@ export const users = pgTable('user', {
 	notionAccessToken: text('notion_access_token'),    // stores the integration secret (ntn_...)
 	notionWorkspaceName: text('notion_workspace_name'), // reserved for future OAuth workspace name
 	notionJournalPageId: text('notion_journal_page_id'), // the root journal page ID
+	// LinkedIn credentials (set by each user in Settings).
+	// LinkedIn does not issue durable API keys for member-level posting; this token
+	// is generated manually from the LinkedIn developer portal's OAuth tools and is
+	// valid for ~60 days. Users rotate it by pasting a fresh one. We mirror the
+	// Notion pattern (token directly on the user row) deliberately — keeps the
+	// settings UI symmetric and avoids inventing a new OAuth-link table for what
+	// is, semantically, just another integration secret.
+	linkedinAccessToken: text('linkedin_access_token'),
+	linkedinMemberUrn: text('linkedin_member_urn'),     // urn:li:person:<sub>, returned by /v2/userinfo
+	linkedinTokenExpiresAt: timestamp('linkedin_token_expires_at', { mode: 'date' }),
 	createdAt: timestamp('created_at', { mode: 'date' }).defaultNow()
 });
 

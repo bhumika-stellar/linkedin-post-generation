@@ -1,3 +1,22 @@
+/**
+ * POST /api/hashtags
+ *
+ * Suggests 3–5 LinkedIn hashtags for a generated post.
+ *
+ * Request body (JSON):
+ *   post - The full text of the generated LinkedIn post.
+ *
+ * Response (JSON):
+ *   { hashtags: string[] } — hashtag strings with the # prefix,
+ *   e.g. ["#leadership", "#AI", "#growth"].
+ *
+ * Auth: session cookie required (401 if missing).
+ *
+ * Uses a fast free model (openrouter/free) regardless of the user's preferred
+ * model, since hashtag suggestion is lightweight and does not need to be streamed.
+ * Errors are silently swallowed in the AI layer and return an empty array so a
+ * hashtag failure never blocks the user's post.
+ */
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { suggestHashtags } from '$lib/server/ai';

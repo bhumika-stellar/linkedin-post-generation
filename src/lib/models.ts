@@ -1,5 +1,20 @@
-// Single source of truth for AI model definitions.
-// Imported by both client components and the server AI module.
+/**
+ * Single source of truth for AI model definitions.
+ *
+ * Imported by both client-side components (InstructionsPanel model selector)
+ * and the server-side AI module — so both sides stay in sync automatically.
+ *
+ * FREE_MODELS  — accessible without a user API key; the server's env key covers them.
+ *                When a free model returns 429 (rate-limited) or 404 (unavailable),
+ *                generatePostStream() automatically tries the next free model in order.
+ *
+ * PAID_MODELS  — require the user to have saved their own OpenRouter key in Settings.
+ *                They are shown in the model selector only if the user has a key.
+ *
+ * DEFAULT_MODEL — used when no model is specified in the generation request.
+ *                 'openrouter/free' lets OpenRouter pick the best available free model
+ *                 automatically, making it the safest zero-config default.
+ */
 
 export const FREE_MODELS = [
 	{ id: 'openrouter/free', name: 'Auto (Best Available Free)' },

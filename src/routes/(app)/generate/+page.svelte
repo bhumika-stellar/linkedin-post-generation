@@ -16,8 +16,13 @@
 	// page refresh doesn't wipe an in-progress session. Source content (Notion
 	// pages, manual text) is intentionally not persisted — it's cheap to
 	// re-select and avoids stale Notion data being resurfaced silently.
+	//
+	// The key is scoped per user so logging in as a different account always
+	// starts fresh and one user never sees another's leftover drafts.
 
-	const SESSION_KEY = 'postgen:session';
+	function sessionKey(): string {
+		return `postgen:session:${$page.data.session?.user?.id ?? 'anon'}`;
+	}
 
 	type PersistedSession = {
 		generatedPost: string;
@@ -29,7 +34,7 @@
 	function loadSession(): PersistedSession | null {
 		if (!browser) return null;
 		try {
-			const raw = localStorage.getItem(SESSION_KEY);
+			const raw = localStorage.getItem(sessionKey());
 			return raw ? (JSON.parse(raw) as PersistedSession) : null;
 		} catch {
 			return null;
@@ -37,7 +42,7 @@
 	}
 
 	function clearSession() {
-		if (browser) localStorage.removeItem(SESSION_KEY);
+		if (browser) localStorage.removeItem(sessionKey());
 	}
 
 	const session = loadSession();
@@ -45,6 +50,11 @@
 	// ── State ─────────────────────────────────────────────────────────────────
 	let sourceContent = $state('');
 	let hasSourceContent = $state(false);
+	// Images extracted from selected Notion pages and stored in Vercel Blob.
+	// Carried alongside sourceContent so they can be saved with the post and
+	// displayed in the editor. Source images are intentionally not persisted
+	// to localStorage (same reason as sourceContent — see note above).
+	let sourceImages = $state<import('$lib/server/db/schema/app').PostImage[]>([]);
 
 	// Restore from the persisted session if one exists.
 	let generatedPost = $state(session?.generatedPost ?? '');
@@ -73,7 +83,7 @@
 			return;
 		}
 		localStorage.setItem(
-			SESSION_KEY,
+			sessionKey(),
 			JSON.stringify({ generatedPost, promptHistory, conversationHistory, suggestedHashtags })
 		);
 	});
@@ -115,12 +125,12 @@
 
 		promptHistory = [...promptHistory, { role: 'user', text: prompt }];
 
+		// Store ONLY what the user actually said. Any framing the AI needs
+		// (e.g. "Generate a LinkedIn post from the source") lives in the AI
+		// module (src/lib/server/ai/index.ts → buildMessages), so it never
+		// pollutes localStorage, saved posts, or saved templates.
 		const isFirst = conversationHistory.length === 0;
-		const userMessage = isFirst
-			? `Generate a LinkedIn post based on the content I provided. Here are my instructions:\n\n${prompt}`
-			: prompt;
-
-		conversationHistory = [...conversationHistory, { role: 'user', content: userMessage }];
+		conversationHistory = [...conversationHistory, { role: 'user', content: prompt }];
 		isGenerating = true;
 		generatedPost = '';
 
@@ -186,6 +196,7 @@
 		conversationHistory = [];
 		currentPrompt = '';
 		suggestedHashtags = [];
+		sourceImages = [];
 		saved = false;
 		clearSession();
 		contentSourceRef?.reset();
@@ -205,7 +216,15 @@
 			const res = await fetch('/api/posts', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ generatedContent: generatedPost, rawInput: sourceContent, conversationHistory, status: 'draft' })
+				body: JSON.stringify({
+					generatedContent: generatedPost,
+					rawInput: sourceContent,
+					conversationHistory,
+					// Persist images so the post card shows thumbnails and the
+					// cron can attach them when publishing to LinkedIn.
+					images: sourceImages,
+					status: 'draft'
+				})
 			});
 			if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Save failed');
 			saved = true;
@@ -246,6 +265,7 @@
 		{notionConfigured}
 		bind:sourceContent
 		bind:hasSourceContent
+		bind:sourceImages
 	/>
 
 	<!-- Sections 2 & 3: side-by-side below Sources -->
@@ -255,7 +275,7 @@
 		{#if instructionsOpen}
 			<div
 				style={postOpen ? `width: ${instructionsWidth}px` : undefined}
-				class="{postOpen ? 'shrink-0' : 'flex-1'} flex flex-col overflow-hidden"
+				class="{postOpen ? 'shrink-0' : 'flex-1'} flex min-h-0 flex-col overflow-hidden"
 			>
 				<InstructionsPanel
 					{promptHistory}
@@ -301,7 +321,7 @@
 
 		<!-- Generated Post (right, flex-1) -->
 		{#if postOpen}
-			<div class="flex flex-1 flex-col overflow-hidden min-w-0">
+			<div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 				<PostEditor
 					bind:generatedPost
 					{suggestedHashtags}
@@ -311,6 +331,7 @@
 					{saved}
 					{copied}
 					hasConversation={conversationHistory.length > 0}
+					attachedImages={sourceImages}
 					onNewPost={handleNewPost}
 					onCopy={handleCopy}
 					onSave={handleSavePost}

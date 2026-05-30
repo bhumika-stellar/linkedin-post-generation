@@ -1,0 +1,1 @@
+ALTER TABLE "generated_post" ADD COLUMN "images" json DEFAULT '[]'::json;

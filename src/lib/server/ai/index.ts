@@ -15,6 +15,21 @@ Guidelines:
 - Keep posts between 150-300 words unless instructed otherwise
 - Do not use hashtags unless asked`;
 
+/**
+ * Legacy first-turn wrapper that the client used to prepend to the user's
+ * first instruction before the framing moved server-side into `buildMessages`.
+ *
+ * It is no longer added anywhere — but old `conversationHistory` arrays may
+ * still be sitting in users' `localStorage` from before the refactor. When
+ * such a session gets saved as a template we strip this prefix so the stored
+ * `systemPrompt` is exactly what the user typed.
+ *
+ * Exported solely so `POST /api/templates` can perform that strip without
+ * duplicating the magic string.
+ */
+export const FIRST_TURN_INSTRUCTIONS_PREFIX =
+	'Generate a LinkedIn post based on the content I provided. Here are my instructions:\n\n';
+
 const TONE_ADDITIONS: Record<string, string> = {
 	storytelling:
 		'Tone: Use narrative storytelling. Open with a concrete scene or moment, build tension, then land on a lesson or insight.',
@@ -36,6 +51,24 @@ function getClient(apiKey?: string) {
 	});
 }
 
+/**
+ * Assemble the message list sent to OpenRouter.
+ *
+ * The shape is intentional and is the ONLY place that owns the AI-facing
+ * protocol:
+ *   1. system  — role + tone
+ *   2. user    — source material (only when present, so we don't ship empty
+ *                "Here are my notes: ----" blocks when the user generates
+ *                from a prompt alone)
+ *   3. user    — the user's actual instructions, verbatim, from the chat
+ *                history. Any further turns are refinement messages.
+ *
+ * Keeping the framing here (not in the page or in the stored conversation)
+ * means `conversationHistory` stays clean: it's exactly what the user typed,
+ * nothing more. That clean history is what gets persisted to localStorage,
+ * saved on `generated_post`, and joined into a template — so this boundary
+ * pays off three layers up.
+ */
 function buildMessages(
 	content: string,
 	conversationHistory: { role: 'user' | 'assistant'; content: string }[],
@@ -44,14 +77,25 @@ function buildMessages(
 	const toneAddition = tone && TONE_ADDITIONS[tone] ? `\n\n${TONE_ADDITIONS[tone]}` : '';
 	const systemPrompt = SYSTEM_PROMPT + toneAddition;
 
-	return [
-		{ role: 'system', content: systemPrompt },
-		{
-			role: 'user',
-			content: `Here are my work notes/journal entries:\n\n---\n${content}\n---\n\nUse these as the source material for the LinkedIn post.`
-		},
-		...conversationHistory
+	const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+		{ role: 'system', content: systemPrompt }
 	];
+
+	if (content.trim()) {
+		messages.push({
+			role: 'user',
+			content: `Here is the source material for the LinkedIn post:\n\n---\n${content}\n---\n\nGenerate the post based on the instructions I provide next.`
+		});
+	} else {
+		messages.push({
+			role: 'user',
+			content:
+				'No external source material was provided — generate the post from the instructions I provide next.'
+		});
+	}
+
+	messages.push(...conversationHistory);
+	return messages;
 }
 
 /**
