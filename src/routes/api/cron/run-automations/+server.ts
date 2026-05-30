@@ -118,6 +118,7 @@ export const GET: RequestHandler = async (event) => {
 			await AutomationSettingModel.touchLastDraftAt(user.id, now);
 			report.drafted++;
 
+			console.log('[cron] email debug — user.email:', user.email, '| RESEND_API_KEY set:', !!env.RESEND_API_KEY);
 			if (user.email) {
 				const preview = generated.slice(0, 100);
 				const appUrl = env.PUBLIC_APP_URL ?? 'http://localhost:5176';
