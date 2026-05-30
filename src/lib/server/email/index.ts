@@ -42,7 +42,8 @@ export async function sendDraftReadyEmail(
 	const postUrl = `${appUrl}/posts?refine=${encodeURIComponent(postId)}`;
 
 	try {
-		await resend.emails.send({
+		console.log('[email] Sending to:', to, '| appUrl:', appUrl);
+		const result = await resend.emails.send({
 			from: 'PostGen <onboarding@resend.dev>',
 			to,
 			subject: 'New draft ready for review',
@@ -63,6 +64,7 @@ export async function sendDraftReadyEmail(
 				</div>
 			`
 		});
+		console.log('[email] Send result:', JSON.stringify(result));
 	} catch (err) {
 		console.warn('[email] Failed to send draft-ready notification:', err);
 	}
