@@ -41,7 +41,7 @@ import { getPageContent, listJournalPages } from '$lib/server/notion';
 import { storeNotionImage } from '$lib/server/storage';
 import { generatePostStream } from '$lib/server/ai';
 import { publishPost } from '$lib/server/linkedin';
-import { isDraftDue, isDraftTimeNow, computeNextPublishTime } from '$lib/server/automation';
+import { isDraftDue, computeNextPublishTime } from '$lib/server/automation';
 import { sendDraftReadyEmail } from '$lib/server/email';
 
 interface RunReport {
@@ -79,11 +79,6 @@ export const GET: RequestHandler = async (event) => {
 
 	for (const { user, automation } of eligible) {
 		try {
-			if (!isDraftTimeNow(automation, now)) {
-				report.skipped.push({ userId: user.id, reason: 'not draft hour' });
-				continue;
-			}
-
 			if (!isDraftDue(automation, now)) {
 				report.skipped.push({ userId: user.id, reason: 'not due yet' });
 				continue;
